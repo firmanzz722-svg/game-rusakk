@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Flappy Love Pro Skin Edition</title>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; touch-action: none; color: white; }
+        canvas { display: block; }
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.95); z-index: 10; text-align: center;
+        }
+        h1 { color: #ff007f; text-shadow: 0 0 15px #fff; font-size: 30px; margin-bottom: 20px; }
+        .btn {
+            background: #ff007f; color: white; border: none; padding: 12px 30px;
+            font-size: 18px; font-weight: bold; border-radius: 25px; margin: 8px;
+            cursor: pointer; width: 200px;
+        }
+        .skin-text-red { color: #ff4d4d; font-weight: bold; cursor: pointer; margin: 10px; font-size: 18px; padding: 10px; }
+        .skin-text-green { color: #4dff4d; font-weight: bold; cursor: pointer; margin: 10px; font-size: 20px; padding: 10px; text-decoration: underline; }
+        #ui { 
+            position: absolute; top: 10px; width: 100%; text-align: center; 
+            color: #ff007f; font-size: 14px; font-weight: bold; pointer-events: none; z-index: 5;
+        }
+        .hidden { display: none !important; }
+        .skin-option { background: #333; padding: 15px; margin: 5px; border-radius: 10px; width: 150px; border: 1px solid #ff007f; }
+    </style>
+</head>
+<body>
+
+    <div id="ui" class="hidden">
+        SKOR: <span id="scoreText">0</span> | TERBAIKMU: <span id="localHigh">0</span><br>
+        <span style="color: #00ecff;">REKOR DUNIA: <span id="globalHigh">0</span></span>
+    </div>
+
+    <div id="homeScreen" class="overlay">
+        <h1>FLAPPY LOVE</h1>
+        <button class="btn" onclick="startGame()">PLAY</button>
+        <button class="btn" style="background: #444;" onclick="toggleScreen('settingsScreen', true)">SETTINGS</button>
+        <button class="btn" style="background: #444;" onclick="toggleScreen('skinNoticeScreen', true)">SKIN</button>
+    </div>
+
+    <div id="skinNoticeScreen" class="overlay hidden">
+        <div class="skin-text-red" onclick="toggleScreen('skinNoticeScreen', false)">Kalo mau bikin skin kirim fotonya ke ojan</div>
+        <div class="skin-text-green" onclick="showSkinSelection()">Lanjut</div>
+    </div>
+
+    <div id="skinSelectScreen" class="overlay hidden">
+        <h2>PILIH SKIN</h2>
+        <div class="skin-option" onclick="selectSkin('awal')">Skin Awal</div>
+        <div class="skin-option" onclick="selectSkin('otot')">Skin Otot</div>
+        <br>
+        <button class="btn" style="background: #444;" onclick="toggleScreen('skinSelectScreen', false)">KEMBALI</button>
+    </div>
+
+    <div id="settingsScreen" class="overlay hidden">
+        <h2>PENGATURAN</h2>
+        <input type="text" id="playerNameInput" placeholder="Nama..." maxlength="12" style="padding:10px; border-radius:10px; text-align:center;">
+        <button class="btn" onclick="saveSettings()">SIMPAN</button>
+    </div>
+
+    <audio id="bgMusic" loop><source src="musik.mp3" type="audio/mpeg"></audio>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const bgMusic = document.getElementById("bgMusic");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const imgAwal = new Image(); imgAwal.src = 'Snapchat-1731135793.jpg'; 
+    const imgOtot = new Image(); imgOtot.src = 'otot'; 
+    const imgPipa = new Image(); imgPipa.src = 'pipa'; 
+
+    let currentSkinMode = 'normal'; // normal = evolusi skor 10, manual = kunci satu skin
+    let selectedSkinImg = imgAwal;
+    
+    let playerName = localStorage.getItem("playerName") || "User";
+    let localHighScore = Number(localStorage.getItem("flappyLocalHigh")) || 0;
+    let globalHighName = localStorage.getItem("globalHighName") || "ojan";
+    let globalHighScore = Number(localStorage.getItem("flappyGlobalHigh")) || 15;
+
+    function toggleScreen(id, show) {
+        document.getElementById(id).classList.toggle("hidden", !show);
+        if(id === 'skinNoticeScreen' || id === 'settingsScreen') {
+            document.getElementById("homeScreen").classList.toggle("hidden", show);
+        }
+    }
+
+    function showSkinSelection() {
+        document.getElementById("skinNoticeScreen").classList.add("hidden");
+        document.getElementById("skinSelectScreen").classList.remove("hidden");
+    }
+
+    function selectSkin(type) {
+        if(type === 'awal') {
+            currentSkinMode = 'manual';
+            selectedSkinImg = imgAwal;
+        } else {
+            currentSkinMode = 'manual';
+            selectedSkinImg = imgOtot;
+        }
+        alert("Skin dipilih!");
+        toggleScreen('skinSelectScreen', false);
+        document.getElementById("homeScreen").classList.remove("hidden");
+    }
+
+    function saveSettings() {
+        playerName = document.getElementById("playerNameInput").value || "User";
+        localStorage.setItem("playerName", playerName);
+        toggleScreen('settingsScreen', false);
+    }
+
+    let bird = { x: 50, y: canvas.height/2, w: 50, h: 50, gravity: 0.6, lift: -10, velocity: 0 };
+    let pipes = [];
+    let score = 0;
+    let frame = 0;
+    let gameActive = false;
+
+    function startGame() {
+        document.getElementById("homeScreen").classList.add("hidden");
+        document.getElementById("ui").classList.remove("hidden");
+        gameActive = true; score = 0; pipes = []; bird.y = canvas.height/2; bird.velocity = 0;
+        document.getElementById("scoreText").innerText = "0";
+        document.getElementById("localHigh").innerText = localHighScore;
+        document.getElementById("globalHigh").innerText = `${globalHighName} (${globalHighScore})`;
+        animate();
+    }
+
+    function jump() {
+        if (!gameActive) return;
+        if (bgMusic.paused) { bgMusic.play(); bgMusic.volume = 0.4; }
+        bird.velocity = bird.lift;
+    }
+
+    window.addEventListener("touchstart", (e) => { if(gameActive) { jump(); e.preventDefault(); } }, {passive: false});
+    window.addEventListener("mousedown", () => { if(gameActive) jump(); });
+
+    function animate() {
+        if (!gameActive) return;
+        ctx.fillStyle = (score >= 10) ? "#1a000d" : "#0d0d0d"; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        bird.velocity += bird.gravity;
+        bird.y += bird.velocity;
+
+        // Logika Skin
+        let displayImg = selectedSkinImg;
+        if(currentSkinMode === 'normal') {
+            displayImg = (score >= 10) ? imgOtot : imgAwal;
+        }
+        
+        if (displayImg.complete) ctx.drawImage(displayImg, bird.x, bird.y, bird.w, bird.h);
+
+        if (bird.y + bird.h > canvas.height || bird.y < 0) return endGame();
+
+        if (frame % 90 === 0) {
+            let gap = 180;
+            let h = Math.random() * (canvas.height - gap - 100) + 50;
+            pipes.push({ x: canvas.width, t: h, b: canvas.height - h - gap, w: 60, p: false });
+        }
+
+        pipes.forEach((p, i) => {
+            p.x -= 3.5;
+            if (imgPipa.complete) {
+                ctx.save();
+                ctx.translate(p.x + p.w/2, p.t/2); ctx.rotate(Math.PI);
+                ctx.drawImage(imgPipa, -p.w/2, -p.t/2, p.w, p.t);
+                ctx.restore();
+                ctx.drawImage(imgPipa, p.x, canvas.height - p.b, p.w, p.b);
+            }
+            if (bird.x < p.x + p.w && bird.x + bird.w > p.x && (bird.y < p.t || bird.y + bird.h > canvas.height - p.b)) endGame();
+            if (!p.p && p.x < bird.x) { score++; document.getElementById("scoreText").innerText = score; p.p = true; }
+            if (p.x + p.w < 0) pipes.splice(i, 1);
+        });
+
+        frame++;
+        requestAnimationFrame(animate);
+    }
+
+    function endGame() {
+        gameActive = false;
+        bgMusic.pause();
+        if (score >= localHighScore) { localHighScore = score; localStorage.setItem("flappyLocalHigh", localHighScore); }
+        if (score >= globalHighScore) {
+            globalHighScore = score; globalHighName = playerName;
+            localStorage.setItem("flappyGlobalHigh", globalHighScore); localStorage.setItem("globalHighName", globalHighName);
+        }
+        setTimeout(() => {
+            alert(`GAME OVER!\nSkor: ${score}`);
+            document.getElementById("homeScreen").classList.remove("hidden");
+            document.getElementById("ui").classList.add("hidden");
+            currentSkinMode = 'normal'; // Reset ke mode evolusi otomatis tiap main baru
+        }, 100);
+    }
+</script>
+</body>
+</html>
